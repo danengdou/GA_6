@@ -6,6 +6,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
@@ -28,6 +29,10 @@ public class Company {
 	public static int[][] realArray;    //数据读取
 	public static int key;              //计划提前与计划平均相冲突，此处为切换开关，key=1代表提前，key=0代表平均 
 	public static double pmultationAdv; //计划提前程度,当key=1时，设置该值，取值范围为0.5~1，越大越提前，越小越平均
+	public static int[] lockRows;       //锁定行
+	public static int[] lockColumns;    //锁定列
+	public static ArrayList lockRowsList;       //锁定行集合
+	public static ArrayList lockColumnsList;    //锁定列集合
 	
 	
 	public Company() {
@@ -45,6 +50,8 @@ public class Company {
 		this.pen_re = 1;
 		this.key = 0;
 		this.pmultationAdv = 0.7;
+		this.lockRows = new int[]{};
+		this.lockColumns = new int[]{1,2,3,4};
 	}
 	 
 	public static void main(String[] args) {
@@ -63,8 +70,9 @@ public class Company {
 		int[] plan  = changeArrToGroup(ini_List);		//将Arraylist转化为数组
 		avg_re_num = avgReNum(numAllRes);			    //均衡资源数量
 		int count = 0;
-
-		int [][]farm = createFarmAvg(popSize,plan); 
+		lockRowsList = arrayToList(lockRows);           //将锁定行数组转为集合
+		lockColumnsList = arrayToList(lockColumns);     //将锁定列数组转为集合
+		int [][]farm = createFarmAvg(popSize,plan);                          //0、生成初始解
 		while(count < maxgens){
 			int[][] paixu_farm = choPaiXu(farm, plan);                       //1、染色体排序
 			choXuanZe(paixu_farm, plan);									 //2、染色体选择
@@ -80,6 +88,16 @@ public class Company {
 		printResult(farm, plan);
 	}
 
+	//数组转集合
+	private ArrayList arrayToList(int[] array) {
+		ArrayList<Integer> a = new ArrayList<Integer>();
+		if (array.length > 0) {
+			for (int i=0;i<array.length;i++) {
+				a.add(array[i]);
+			}
+		}
+		return a;
+	}
 	//计算总资源个数
 	private int addAllRes(int[][] realArray) {
 		int count = 0;
@@ -424,6 +442,16 @@ public class Company {
 			  A1 = rand.nextInt(popSize-1);
 			  A2 = rand.nextInt(popSize-1);
 			  cross_position = rand.nextInt(len_of_gene-1);
+			  //保证cross_position不在锁定范围
+			  if (paixu_farm[A1][cross_position] == 0 || paixu_farm[A2][cross_position] == 0) {
+				 continue; 
+			  } else {
+				  if (lockRowsList.contains(whatRow(cross_position,plan)) 
+						  || lockColumnsList.contains(paixu_farm[A1][cross_position]+1)
+						  || lockColumnsList.contains(paixu_farm[A2][cross_position]+1) ) {
+					  continue; 
+				  }
+			  }
 			  temp1 = paixu_farm[A1][cross_position];
 			  temp2 = paixu_farm[A2][cross_position];
 			  paixu_farm[A1][cross_position] = temp2;
@@ -439,7 +467,16 @@ public class Company {
 		 }
 
     }
-	 
+	//计算一个数位于第几行
+    private static int whatRow(int num, int[] plan) {
+    	int k = 0;
+    	for (int i=0;i<num;i++) {
+    		if (plan[i] == 0) {
+    			k++;
+    		}
+    	}
+    	return k;
+    }
     //染色体变异
     private static void choMutateAdv(int[][] paixu_farm, int[] plan, int len_of_gene){
     	 int[][] paixu_farm3 = copy_farm(plan.length, paixu_farm);            //备份交叉后染色体
@@ -466,6 +503,10 @@ public class Company {
 			 Random rand = new Random();
 			 B1 = rand.nextInt(popSize-1);
 			 mutate_position = rand.nextInt(len_of_gene-1);
+			//保证mutate_position不在锁定范围
+			if (lockRowsList.contains(whatRow(mutate_position,plan))|| lockColumnsList.contains(paixu_farm[B1][mutate_position]+1)) {
+			     continue; 
+			}
 			  if(plan[mutate_position] == 0){
 				 paixu_farm[B1][mutate_position]=0;
 				}else{
@@ -475,9 +516,20 @@ public class Company {
 					if (point - 0.5 > plan[mutate_position-1]) {
 						int turePoint = (int)Math.floor(point);//实际分割值
 						if (random2 <=pmultationAdv){
-							paixu_farm[B1][mutate_position] = rand.nextInt(turePoint-plan[mutate_position-1])+1+plan[mutate_position-1];
+							int temp1 = rand.nextInt(turePoint-plan[mutate_position-1])+1+plan[mutate_position-1];
+							if (lockColumnsList.contains(temp1+1)) {
+								continue;
+							} else {
+								paixu_farm[B1][mutate_position] = temp1;
+							}
+							
 						}else{
-							paixu_farm[B1][mutate_position] = rand.nextInt(plan[mutate_position]-turePoint)+1+turePoint;
+							int temp2 = rand.nextInt(plan[mutate_position]-turePoint)+1+turePoint;
+							if (lockColumnsList.contains(temp2+1)) {
+								continue;
+							} else {
+								paixu_farm[B1][mutate_position] = temp2;
+							}
 						}
 					} else {
 						paixu_farm[B1][mutate_position] = plan[mutate_position];
@@ -541,11 +593,25 @@ public class Company {
 		Random rand = new Random();
 		int [][] farm = new int[popSize][plan.length];
 		for (int i=0;i<popSize;i++){
+			int h = 0;
 			for (int j=0;j<plan.length;j++){
-				if(plan[j] == 0){
-					farm[i][j]=0;
-				}else{
-					farm[i][j] = rand.nextInt(plan[j]-plan[j-1]) + 1 + plan[j-1];
+				if (lockRowsList.contains(h) || lockColumnsList.contains(plan[j]+1)) {
+					farm[i][j]=plan[j];
+					if(plan[j] == 0) {
+						h++;
+					}
+				} else {
+					if(plan[j] == 0){
+						farm[i][j]=0;
+						h++;
+					}else{
+						int temp = rand.nextInt(plan[j]-plan[j-1]) + 1 + plan[j-1];
+						if (lockColumnsList.contains(temp+1)) {
+							farm[i][j] = plan[j];
+						} else {
+							farm[i][j] = temp;
+						}
+					}
 				}
 			}
 		}
@@ -575,10 +641,19 @@ public class Company {
 			 Random rand = new Random();
 			 B1 = rand.nextInt(popSize-1);
 			 mutate_position = rand.nextInt(len_of_gene-1);
+			//保证mutate_position不在锁定范围
+			  if (lockRowsList.contains(whatRow(mutate_position,plan))|| lockColumnsList.contains(paixu_farm[B1][mutate_position]+1)) {
+			 	     continue; 
+			  }
 			  if(plan[mutate_position] == 0){
 				 paixu_farm[B1][mutate_position]=0;
 				}else{
-					paixu_farm[B1][mutate_position]= rand.nextInt(plan[mutate_position]-plan[mutate_position-1]) + 1 + plan[mutate_position-1];
+					int temp3 = rand.nextInt(plan[mutate_position]-plan[mutate_position-1]) + 1 + plan[mutate_position-1];
+					if (lockColumnsList.contains(temp3+1)){
+						continue;
+					} else {
+						paixu_farm[B1][mutate_position] = temp3;
+					}
 				}
 		 }
 		 int[] farm_mutate_fitness = calFitness(paixu_farm, plan);
