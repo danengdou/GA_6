@@ -1,45 +1,38 @@
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
-import java.util.Set;
-import java.util.TreeSet;
+import java.io.*;
+import java.util.*;
 
 public class Company {
 
-	public static int rows;				//数据的行数		
-	public static int column;			//数据的列数
-	public static String dataPath;		//输入路径
-	public static String resultPath;	//输出路径
-	public static int user_resource;    //用户自定义资源数量
-	public static int popSize;          //种群数量
-	public static int maxgens;          //迭代次数
-	public static double pxover;        //交叉概率
-	public static double pmultation;    //变异概率
-	public static int g_max;            //优化重合数的迭代次数
-	public static int pen_more;         //超过资源数的惩罚
-	public static int pen_re;           //实施和计划重合的惩罚
-	public static int avg_re_num;       //均衡资源的数量
-	public static int[][] realArray;    //数据读取
-	public static int key;              //计划提前与计划平均相冲突，此处为切换开关，key=1代表提前，key=0代表平均 
-	public static double pmultationAdv; //计划提前程度,当key=1时，设置该值，取值范围为0.5~1，越大越提前，越小越平均
-	public static int[] lockRows;       //锁定行
-	public static int[] lockColumns;    //锁定列
-	public static ArrayList lockRowsList;       //锁定行集合
-	public static ArrayList lockColumnsList;    //锁定列集合
+	private static int rows;				//数据的行数
+	private static int column;			//数据的列数
+	private static String dataPath;		//输入路径
+	private static String resultPath;	//输出路径
+	private static int user_resource;    //用户自定义资源数量
+	private static int popSize;          //种群数量
+	private static int maxgens;          //迭代次数
+	private static double pxover;        //交叉概率
+	private static double pmultation;    //变异概率
+	private static int g_max;            //优化重合数的迭代次数
+	private static int pen_more;         //超过资源数的惩罚
+	private static int pen_re;           //实施和计划重合的惩罚
+	private static int avg_re_num;       //均衡资源的数量
+	private static int[][] realArray;    //数据读取
+	private static int key;              //计划提前与计划平均相冲突，此处为切换开关，key=1代表提前，key=0代表平均
+	private static double pmultationAdv; //计划提前程度,当key=1时，设置该值，取值范围为0.5~1，越大越提前，越小越平均
+	private static int[] lockRows;       //锁定行
+	private static int[] lockColumns;    //锁定列
+	private static ArrayList lockRowsList;       //锁定行集合
+	private static ArrayList lockColumnsList;    //锁定列集合
 	
 	
 	public Company() {
 		this.rows = 0;
 		this.column = 0;
-		this.dataPath = "E:\\Java\\workspace\\GA5\\data.csv";
-		this.resultPath = "E:\\Java\\workspace\\GA5\\result.csv";
+		//this.dataPath = "E:\\Java\\workspace\\GA5\\data.csv";
+		//this.resultPath = "E:\\Java\\workspace\\GA5\\result.csv";
+		this.dataPath = "C:\\Users\\hantao5\\Desktop\\GA_6\\Book1.csv";
+		this.resultPath = "C:\\Users\\hantao5\\Desktop\\GA_6\\result.csv";
+
 		this.user_resource = 6;
 		this.popSize = 50;
 		this.maxgens = 10000;
@@ -49,9 +42,9 @@ public class Company {
 		this.pen_more = 10000;
 		this.pen_re = 1;
 		this.key = 0;
-		this.pmultationAdv = 0.7;
+		this.pmultationAdv = 1;
 		this.lockRows = new int[]{};
-		this.lockColumns = new int[]{1,2,3,4};
+		this.lockColumns = new int[]{};
 	}
 	 
 	public static void main(String[] args) {
@@ -63,8 +56,10 @@ public class Company {
 	private void process() {
 		ArrayList ini_List = readData();         		//简化形式读取excel中的数据-计划方案
 		realArray = readData2();         		        //完整形式读取excel中的数据-计划方案
+		int[] firstColumn = saveFirstColumn(realArray); //保存第1列的值 -- 解决第1列值有0报异常
 		System.out.println("----------计划方案为---------");
 		System.out.println(ini_List);					//打印计划Arraylist
+		setRealArrayIsNotZero(realArray);//数组中第一列的值暂时置为1
 		int len_of_gene = ini_List.size();				//染色体的长度
 		int numAllRes = addAllRes(realArray);           //计算总资源数量
 		int[] plan  = changeArrToGroup(ini_List);		//将Arraylist转化为数组
@@ -85,7 +80,7 @@ public class Company {
 			farm = paixu_farm;
 			count=count+1;
 		}
-		printResult(farm, plan);
+		printResult(farm, plan, firstColumn);
 	}
 
 	//数组转集合
@@ -108,13 +103,26 @@ public class Company {
 		}
 		return count;
 	}
-    
-	private void printResult(int[][] farm, int[] plan) {
+
+	public int[] saveFirstColumn(int[][] realArray) {
+		int[] firstColumn = new int[rows];
+		for (int i=0; i<rows; i++) {
+			firstColumn[i] = realArray[i][0];
+		}
+		return firstColumn;
+	}
+
+	private void setRealArrayIsNotZero(int[][] realArray) {
+		for (int i=0; i<rows; i++) {
+			realArray[i][0] = 1;
+		}
+	}
+	private void printResult(int[][] farm, int[] plan, int[] firstColumn) {
 		int[][] paixu_farm = choPaiXu(farm, plan);                    
 		int[] best_result = paixu_farm[0];//存储最优路径
 		int[] farm_fitness2 = calFitness(paixu_farm,plan);//计算染色体的适应度
 		int[] compareData = groupData(best_result);//将完整数据拼成一维数组
-		int[][] result = createData(best_result, compareData);	//根据一维数组还原矩阵
+		int[][] result = createData(best_result, compareData, firstColumn);	//根据一维数组还原矩阵
 		 if(farm_fitness2[0] < pen_more){
 			 FileWriter fw = null;
 			 BufferedWriter bw = null;
@@ -178,7 +186,7 @@ public class Company {
 	}
 
 	//根据一维数组还原矩阵
-	private int[][] createData(int[] best_result, int[] compareData) {
+	private int[][] createData(int[] best_result, int[] compareData, int[] firstColumn) {
 		 int[][] result = new int[rows][column];
 		 int enter = 0;
 		 for(int i=0;i<best_result.length;i++){
@@ -188,6 +196,9 @@ public class Company {
 				}else{
 					result[enter-1][best_result[i]] = compareData[i];
 				}
+		 }
+		 for (int i=0;i<rows;i++) {
+			 result[i][0] = firstColumn[i];
 		 }
 		return result;
 	}
@@ -244,8 +255,9 @@ public class Company {
 	            while ((str = br.readLine()) != null)
 	            {
 	            	 rows++;
+		             ini_List.add(0);
 	            	 temp = str.split(","); 
-	            	 for(int j=0;j<temp.length;j++){ 
+	            	 for(int j=1;j<temp.length;j++){
 	            		 //分割字符串
 	 	                if ( Integer.parseInt( temp[j] )!=0 ){
 	 	                	ini_List.add(j);
@@ -324,7 +336,8 @@ public class Company {
   		int width = order.size();//染色体的长度
   		int[] save_list = new int[width];
   			   for (int j = 0; j <width; j++) {
-  				   save_list[j]= (int) order.get(j);
+  				  //
+			       save_list[j]= Integer.parseInt(order.get(j).toString());
   			   }
   		return save_list;
       }
